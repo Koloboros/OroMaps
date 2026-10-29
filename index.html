@@ -63,8 +63,23 @@ html,body{margin:0;height:100%;overflow:hidden;background:#1b0b0d;color:var(--pa
 .hint{font-size:15px;color:#bfa77f;font-style:italic;margin:14px 8px}
 
 /* map marks */
-.seal{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#c2483a,#7a1c1c 70%);color:#fbe9d2;font-family:'Libre Baskerville',serif;font-size:13px;display:flex;align-items:center;justify-content:center;border:2px solid rgba(251,233,210,.75);box-shadow:0 2px 8px rgba(0,0,0,.45);transition:transform .2s}
-.seal.on{transform:scale(1.25)}
+/* medallion: parchment disc, double wine ring, ink icon. Opacity is driven by cursor proximity. */
+.seal{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 40% 35%,#f6ecd4,#e3cfa3 75%);
+  box-shadow:0 0 0 1.5px #7a1c1c,0 0 0 4px rgba(246,236,212,.9),0 0 0 5px rgba(122,28,28,.55),0 6px 16px rgba(40,10,10,.35);
+  opacity:0;transform:scale(.82);transition:opacity .35s ease,transform .35s ease;cursor:pointer;will-change:opacity,transform}
+.seal svg{width:26px;height:26px;fill:none;stroke:#5a1616;stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round}
+.seal.on{opacity:1!important;transform:scale(1.08)!important}
+.touch .seal{opacity:.92;transform:scale(.9)}
+/* book */
+.book{display:grid;grid-template-columns:86px 1fr;gap:14px;margin:8px 6px 4px;padding:12px;border-radius:8px;border:1px solid rgba(154,40,40,.75);background:linear-gradient(135deg,rgba(154,40,40,.22),rgba(154,40,40,.05))}
+.book img{width:86px;height:118px;object-fit:cover;border-radius:3px;box-shadow:0 6px 14px rgba(0,0,0,.45)}
+.book h3{font-family:'Libre Baskerville',serif;font-size:17px;margin:0 0 2px;letter-spacing:.03em}
+.book .by{font-size:14px;color:#cdb991;margin-bottom:6px}
+.book q{display:block;font-style:italic;font-size:15px;line-height:1.35;color:#e3d2ae;margin-bottom:10px}
+.buy{display:inline-block;padding:7px 16px;border-radius:4px;background:#9a2828;color:#fdf3e2;text-decoration:none;font-family:'Libre Baskerville',serif;font-size:13.5px;letter-spacing:.08em;border:1px solid #c2483a;transition:background .2s}
+.buy:hover{background:#b23131}
+.soon{margin:10px 6px;padding:10px 12px;border:1px dashed rgba(239,226,196,.25);border-radius:8px;color:#bfa77f;font-style:italic;font-size:15px}
 .rlabel{background:rgba(38,13,16,.88)!important;color:var(--paper)!important;border:1px solid rgba(154,40,40,.8)!important;border-radius:4px!important;font-family:'Libre Baskerville',serif;font-size:13px;letter-spacing:.05em;padding:3px 8px!important;box-shadow:none!important}
 .rlabel::before{display:none}
 .pulse{animation:pulse 1.4s ease 2}
@@ -104,8 +119,37 @@ let cur = null, layers = [], pinned = null, regionLayers = {};
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const countOf = r => new Set(r.groups.flatMap(g => g[1])).size;
-const STYLE = { color: '#7a1c1c', weight: 1.5, dashArray: '5 5', fillColor: '#9a2828', fillOpacity: 0.07, opacity: 0.7, bubblingMouseEvents: false };
-const HOVER = { weight: 2.5, dashArray: null, fillOpacity: 0.22, opacity: 1, color: '#9a2828' };
+const STYLE = { color: '#7a1c1c', weight: 1, dashArray: null, fillColor: '#8a1f1f', fillOpacity: 0.10, opacity: 0.25, bubblingMouseEvents: false };
+const HOVER = { weight: 1.8, dashArray: null, fillOpacity: 0.2, opacity: 0.85, color: '#7a1c1c' };
+
+// hand-drawn style icons, 24x24, stroked in ink
+const ICONS = {
+  ceremo: '<path d="M4 20h16M6 20v-3h12v3M8 17v-3h8v3M10 14v-3h4v3"/><circle cx="12" cy="6.4" r="1.9"/><path d="M12 2.6v.9M8.6 4.1l.6.6M15.4 4.1l-.6.6M7.3 7.2h.9M15.8 7.2h.9"/>',
+  surtunkaya: '<path d="M3 19.5c1.8 0 2-1.4 3.8-1.4s2 1.4 3.8 1.4 2-1.4 3.8-1.4 2 1.4 3.8 1.4 1.4-.6 1.8-.9"/><path d="M4.5 16.2 8 8.5l2.6 2.2 2.2-5.2 3.3 4.6 3.4 6.1"/><path d="M9.5 13.5l1.3 1.1M13.7 11.5l.9 1.4"/>',
+  derman: '<path d="M3 20.5V10h2.6v2.2h2.1V10h2.6v2.2h2.4V10h2.6v2.2h2.1V10H21v10.5z"/><path d="M10 20.5v-3.6a2 2 0 0 1 4 0v3.6"/><path d="M12 9.6V4.2l3 1.2-3 1.2"/>',
+  kavurova: '<path d="M2.5 19.5c2.7-2.4 5.4-2.4 8.1 0s5.4 2.4 8.1 0c.9-.8 1.9-1.2 2.8-1.2"/><path d="M6.4 16.3c-.3-4.6 1.7-8.5 5.3-8.9 3.1-.3 4.9 2 4.5 4.3-.4 2.2-2.7 3-4.2 2.1-1.1-.7-1-2.3.1-2.6"/><path d="M15.6 9.1l1.6-1.3M16.3 10.3l2-.4"/>',
+  payendegan: '<path d="M4.5 6.2 12 2.8l7.5 3.4z"/><path d="M5.5 7.8h13M6.5 9.4h11M8.4 9.4v8.4M12 9.4v8.4M15.6 9.4v8.4M6.5 17.8h11M5 19.7h14"/>',
+  haarbova: '<path d="M3 20.5h18"/><path d="M5.2 20.5v-9.8l1.9-2.1 1.9 2.1v9.8M10.3 20.5V6.3L12 4.1l1.7 2.2v14.2M15 20.5v-8.2l1.9-1.9 1.9 1.9v8.2"/><path d="M12 9.3v3.4M10.9 11h2.2M7.1 13.4v2M16.9 14.6l.01.01"/>',
+  vefat: '<path d="M2.5 20.5 9 8.8l2.9 3.9L15 6.5l6.5 14z"/><path d="M13.6 9.7l.9 1.5"/><ellipse cx="12.2" cy="17.6" rx="1.5" ry="2.5"/><path d="M9.8 16.4l-.9-.5M14.6 16.4l.9-.5M12.2 14.2v-.8"/>',
+  pofova: '<path d="M18.5 3C11 5.2 6.6 11.4 6.2 21"/><path d="M18.5 3c.9 6.6-3.2 11.6-10 12.6"/><path d="M10.9 8.7l2.8.6M9.3 11.4l3 .9M8.1 14.4l2.9 1M15.2 5.4l2.2-.2"/>',
+  sumukeli: '<path d="M2.5 19.2c1.6-1 3.2-1 4.8 0s3.2 1 4.8 0 3.2-1 4.8 0 2.4.6 3.6.3"/><path d="M6.5 17.2V8.6M6.5 8.6c-1-1-1.1-3 0-4.2 1.1 1.2 1 3.2 0 4.2M10.4 16.6V6.3M10.4 6.3c-.9-1-1-2.9 0-4 1 1.1.9 3 0 4M14.2 17.3v-6.1"/><path d="M13.1 13.6l7.2-5.4M19.4 7.1l1.8 2.3"/>',
+  'h-ucmakan': '<path d="M12 21.3V4.4"/><circle cx="12" cy="3.2" r="1.1"/><path d="M12 6.1c-2.9.9-4 3.8-3 8.3M12 6.1c2.9.9 4 3.8 3 8.3M12 7.2c-1.4 2.1-1.4 5 0 7.6M9.6 18.6h4.8"/>',
+  'h-tirsnadoruk': '<path d="M3 4.5h18L12 20.5z"/><path d="M6.6 8.6h10.8"/><circle cx="8.6" cy="6.5" r=".45"/><circle cx="10.3" cy="6.5" r=".45"/><circle cx="12" cy="6.5" r=".45"/><circle cx="13.7" cy="6.5" r=".45"/><circle cx="15.4" cy="6.5" r=".45"/><circle cx="10.9" cy="11.2" r=".45"/><circle cx="13.1" cy="11.2" r=".45"/>',
+  'h-kufkent': '<ellipse cx="12" cy="13.2" rx="2.6" ry="3.1"/><circle cx="12" cy="8.6" r="1.6"/><path d="M9.6 11.6 5.5 8.3 4.2 9.5M9.4 13.3 4.4 13l-.9 1.6M9.8 15.1l-3.6 3.4.4 1.6M14.4 11.6l4.1-3.3 1.3 1.2M14.6 13.3l5-.3.9 1.6M14.2 15.1l3.6 3.4-.4 1.6"/><path d="M12 6.9V3"/>',
+  'h-gecekoynu': '<path d="M14.6 3.6a8.6 8.6 0 1 0 5.8 13.6A7 7 0 0 1 14.6 3.6z"/><path d="M18.6 6.1 11.2 17.8M10.2 16l2.8 1.8M10.7 18.6l-.9 1.5"/>',
+};
+const iconFor = id => `<div class="seal"><svg viewBox="0 0 24 24">${ICONS[id] || ICONS.ceremo}</svg></div>`;
+
+const BOOKS = [{
+  t: 'Nebrukaddesar', by: 'T. Can Koloğlugil (Koloboros)', region: 'ceremo',
+  img: 'https://koloboros.wordpress.com/wp-content/uploads/2025/09/gemini_generated_image_4q693h4q693h4q69.jpeg?w=300',
+  q: 'Okurken kimin konuştuğuna dikkat et, Alemgezer. Kimin sustuğuna daha çok.',
+  qby: 'İsimur, Haşmetli Ceremo’nun Vakanivüs’i',
+  buy: 'https://ejderhakitap.com/nebrukaddesar-t-can-kologlugil-koloboros?kapak-secimi=ciltsiz-normak-kapak',
+}];
+function bookHTML(b) {
+  return `<div class="book"><img src="${esc(b.img)}" alt="Nebrukaddesar kapağı" loading="lazy"><div><div class="kicker" style="font-size:12px">Kitap</div><h3>${esc(b.t)}</h3><div class="by">${esc(b.by)}</div><q>${esc(b.q)}</q><div class="by" style="margin:-6px 0 10px;font-size:13px">— ${esc(b.qby)}</div><a class="buy" href="${esc(b.buy)}" target="_blank" rel="noopener">Satın Al</a></div></div>`;
+}
 
 function toLL(p) { return map.unproject(p, cur.maxz); }
 
@@ -126,8 +170,8 @@ function showMap(key, focus) {
       : L.circle(toLL(r.c), { ...STYLE, radius: r.r / Math.pow(2, cur.maxz) });
     shape.addTo(map); layers.push(shape);
     const c = r.poly ? centroid(r) : toLL(r.c);
-    const seal = L.marker(c, { icon: L.divIcon({ className: '', html: `<div class="seal">${countOf(r)}</div>`, iconSize: [30, 30] }), keyboard: false }).addTo(map);
-    seal.bindTooltip(esc(r.n), { className: 'rlabel', direction: 'top', offset: [0, -16] });
+    const seal = L.marker(c, { icon: L.divIcon({ className: '', html: iconFor(r.id), iconSize: [44, 44] }), keyboard: false }).addTo(map);
+    seal.bindTooltip(`${esc(r.n)} · ${countOf(r)} yazı`, { className: 'rlabel', direction: 'top', offset: [0, -24] });
     layers.push(seal);
     regionLayers[r.id] = { shape, seal, r };
     const enter = () => { hover(r.id, true); if (!pinned) renderRegion(r); };
@@ -180,6 +224,8 @@ function renderRegion(r) {
     (pinned ? `<button class="pin" title="Kapat" onclick="unpin()">×</button>` : '');
   let h = '';
   if (r.map) h += `<a class="enter" onclick="showMap('${r.map}')"><img src="3b/haarbova-mini.jpg" alt=""><span>${esc(D.maps[r.map].title)} haritasına gir →</span></a>`;
+  const books = BOOKS.filter(b => b.region === r.id);
+  if (books.length) h += `<div class="grp">Kitap</div>` + books.map(bookHTML).join('');
   h += `<div class="grp">${n} yazı</div>`;
   r.groups.forEach(([g, ids]) => { if (g) h += `<div class="grp">${esc(g)}</div>`; h += ids.map(postHTML).join(''); });
   body.innerHTML = h; body.scrollTop = 0;
@@ -193,7 +239,7 @@ function renderIndex() {
     `<p class="desc">${cur.key === 'oro' ? `${total} yazı, ${cur.regions.length} diyara dağılmış. Bir diyarın üstüne gel ya da aşağıdan seç.` : `Holminn Hayrabolu'nun rüyalarından çizilen diyar. ${cur.regions.length} yer, ${total} yazı.`}</p>`;
   body.innerHTML = `<div class="grp">Diyarlar</div>` + cur.regions.map(r =>
     `<a class="idx" data-id="${r.id}"><span><b>${esc(r.n)}</b><small>${esc(r.s || '')}</small></span><em>${countOf(r)} yazı</em></a>`).join('') +
-    (cur.key === 'oro' ? `<p class="hint">Kitaplar (Nebrukaddesar, Ren & Dhundar) yakında haritaya eklenecek.</p>` : '');
+    (cur.key === 'oro' ? `<div class="grp">Kitaplar</div>` + BOOKS.map(bookHTML).join('') + `<div class="soon">Ren &amp; Dhundar yakında haritaya eklenecek.</div>` : '');
   body.querySelectorAll('.idx').forEach(a => {
     const id = a.dataset.id;
     a.onmouseenter = () => hover(id, true); a.onmouseleave = () => hover(id, false);
@@ -220,6 +266,26 @@ document.getElementById('back').onclick = () => showMap('oro', 'haarbova');
 codex.querySelector('header').addEventListener('click', e => { if (innerWidth <= 760 && e.target.tagName !== 'BUTTON') codex.classList.toggle('min'); });
 map.on('click', e => { if (pinned && !e.originalEvent._regionHit) unpin(); });
 addEventListener('keydown', e => { if (e.key === 'Escape') unpin(); });
+
+// medallions fade in as the cursor approaches; touch screens show them all
+const isTouch = matchMedia('(hover: none)').matches;
+if (isTouch) document.body.classList.add('touch');
+let lastPt = null;
+function proximity() {
+  if (isTouch) return;
+  Object.values(regionLayers).forEach(({ seal }) => {
+    const el = seal.getElement()?.firstChild; if (!el) return;
+    if (!lastPt) { el.style.opacity = ''; el.style.transform = ''; return; }
+    const p = map.latLngToContainerPoint(seal.getLatLng());
+    const d = Math.hypot(p.x - lastPt.x, p.y - lastPt.y);
+    const k = Math.max(0, Math.min(1, 1 - (d - 50) / 170));
+    el.style.opacity = k.toFixed(2);
+    el.style.transform = `scale(${(0.82 + 0.18 * k).toFixed(3)})`;
+  });
+}
+map.on('mousemove', e => { lastPt = e.containerPoint; proximity(); });
+map.on('mouseout', () => { lastPt = null; proximity(); });
+map.on('zoomend moveend', proximity);
 
 if (innerWidth <= 760) codex.classList.add('min');
 showMap('oro');
