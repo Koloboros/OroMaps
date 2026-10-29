@@ -172,7 +172,8 @@ const waterMat = new THREE.ShaderMaterial({
       #include <logdepthbuf_fragment>
       vec2 uv = vec2((vW.x + size.x * .5) / size.x, (vW.z + size.y * .5) / size.y);
       float inside = step(0., uv.x) * step(uv.x, 1.) * step(0., uv.y) * step(uv.y, 1.);
-      float h = mix(range.x, range.y, texture2D(hTex, clamp(uv, 0., 1.)).r);
+      vec4 ht = texture2D(hTex, clamp(uv, 0., 1.));
+      float h = mix(range.x, range.y, (ht.r * 255. * 256. + ht.g * 255.) / 65535.);
       float depth = mix(.3, max(-h, 0.), inside);
       vec3 c = mix(shallow, mid, smoothstep(.0, .035, depth));
       c = mix(c, deep, smoothstep(.035, .2, depth));
@@ -233,7 +234,7 @@ async function init() {
   const mat = terrainMat(); mat.uniforms.map.value = tex; Object.assign(mat.uniforms, LIGHT);
   terrain = new THREE.Mesh(geo, mat); scene.add(terrain);
 
-  const hTex = new THREE.Texture(img); hTex.colorSpace = THREE.NoColorSpace; hTex.needsUpdate = true; hTex.minFilter = THREE.LinearFilter; hTex.generateMipmaps = false;
+  const hTex = new THREE.Texture(img); hTex.colorSpace = THREE.NoColorSpace; hTex.needsUpdate = true; hTex.minFilter = THREE.NearestFilter; hTex.magFilter = THREE.NearestFilter; hTex.generateMipmaps = false;
   waterU.hTex.value = hTex; waterU.range.value.set(lo * VS, hi * VS).multiplyScalar(1 / VS); waterU.size.value.set(W, D);
   const water = new THREE.Mesh(new THREE.PlaneGeometry(W * 5, D * 5), waterMat); water.rotation.x = -Math.PI / 2; scene.add(water);
 
