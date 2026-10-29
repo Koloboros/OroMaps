@@ -29,6 +29,7 @@ input[type=range]{width:120px;accent-color:#c2483a;vertical-align:middle}
 #labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
 .lbl{position:absolute;left:0;top:0;white-space:nowrap;will-change:transform,opacity;text-align:center;color:#2b1a10;transition:opacity .35s;
   text-shadow:0 0 3px rgba(252,246,230,.95),0 0 10px rgba(252,246,230,.65)}
+.lbl.major{font-family:'Libre Baskerville',serif;font-size:18px;letter-spacing:.3em;text-transform:uppercase;color:#4a1a14;text-shadow:0 0 12px rgba(252,246,230,.95),0 0 3px rgba(252,246,230,1)}
 .lbl.continent{font-family:'Libre Baskerville',serif;font-size:34px;letter-spacing:.5em;text-transform:uppercase;color:#4a1a14;text-shadow:0 0 14px rgba(252,246,230,.9),0 0 3px rgba(252,246,230,1)}
 .lbl.region{font-family:'Libre Baskerville',serif;font-size:15px;letter-spacing:.24em;text-transform:uppercase;color:#4a1a14}
 .lbl.sea{font-family:'Libre Baskerville',serif;font-style:italic;font-size:15px;letter-spacing:.32em;text-transform:uppercase;color:#f2fbff;text-shadow:0 0 6px rgba(10,50,80,.6)}
@@ -455,17 +456,17 @@ function buildLandmarks() {
 
 // ---------- labels: tiered by altitude, decluttered on screen ----------
 const labelsEl = document.getElementById('labels'); let labels = [], showLabels = true;
-const TIER = { continent: 0, region: 1, sea: 1, city: 1, lake: 2, town: 2, mountain: 2, forest: 2, island: 2 };
-const PRIO = { continent: 0, sea: 1, region: 2, city: 3, lake: 4, mountain: 5, town: 6, forest: 7, island: 8 };
-const LIFT = { continent: 40, region: 22, sea: 2, lake: 3, city: 14, town: 7, mountain: 8, forest: 8, island: 6 };
-const CONTINENTS = [{ t: 'Ro', u: 880 / 1600, v: 520 / 1142, k: 'continent' }];
+const TIER = { major: 0, continent: 0, region: 1, sea: 1, city: 1, lake: 2, town: 2, mountain: 2, forest: 2, island: 2 };
+const PRIO = { major: 0, continent: 0, sea: 1, region: 2, city: 3, lake: 4, mountain: 5, town: 6, forest: 7, island: 8 };
+const LIFT = { major: 30, continent: 40, region: 22, sea: 2, lake: 3, city: 14, town: 7, mountain: 8, forest: 8, island: 6 };
+const CONTINENTS = [];
 function buildLabels() {
   labels = [...CONTINENTS, ...scn.labels].map(L => { const [x, z] = uvToXZ(L.u, L.v); const el = document.createElement('div'); el.className = 'lbl ' + L.k; el.textContent = L.t; el.style.opacity = 0; labelsEl.appendChild(el); return { ...L, x, z, y: Math.max(groundY(x, z), 0) + LIFT[L.k], el, w: 0, h: 0, shown: false }; });
 }
 const tv = new THREE.Vector3();
 function tierVisible(L, alt, dist) {
   const t = TIER[L.k];
-  if (t === 0) return alt > 520;
+  if (t === 0) return alt > 240 && dist < 4200;
   if (t === 1) return alt > 60 && alt < 640 && dist < 1300 && (L.k !== 'city' || alt < 420);
   return alt < 210 && dist < 460;
 }
