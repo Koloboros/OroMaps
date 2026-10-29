@@ -44,6 +44,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#1b0b0d;color:var(--pa
 #codex .pin{position:absolute;top:14px;right:14px;all:unset;cursor:pointer;color:#cdb991;font-size:20px;line-height:1;padding:4px 8px;position:absolute}
 #codex .body{overflow:auto;padding:6px 14px 18px;flex:1}
 .grp{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#d8a07a;margin:16px 6px 6px}
+.book-grp{display:flex;align-items:center;gap:8px;letter-spacing:.08em;text-transform:none;font-family:'Libre Baskerville',serif;font-size:13.5px;color:#e3d2ae;border-bottom:1px solid rgba(239,226,196,.1);padding-bottom:5px;margin-top:18px}
+.book-grp i{width:4px;height:16px;border-radius:1px;flex:none}
+.book-grp em{margin-left:auto;font-style:normal;font-family:'Crimson Pro',serif;font-size:13px;color:#a8916c}
 .post{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:10px 8px;border-radius:6px;color:var(--paper);text-decoration:none;border:1px solid transparent;transition:background .15s,border-color .15s}
 .post:hover{background:rgba(239,226,196,.06);border-color:rgba(154,40,40,.6)}
 .post .thumb{width:64px;height:64px;border-radius:4px;object-fit:cover;background:#2a0f12;border:1px solid var(--line)}
@@ -141,7 +144,7 @@ const ICONS = {
 const iconFor = id => `<div class="seal"><svg viewBox="0 0 24 24">${ICONS[id] || ICONS.ceremo}</svg></div>`;
 
 const BOOKS = [{
-  t: 'Nebrukaddesar', by: 'T. Can Koloğlugil (Koloboros)', region: 'ceremo',
+  t: 'Nebrukaddesar', by: 'T. Can Koloğlugil (Koloboros)', regions: ['ceremo', 'payendegan', 'haarbova'],
   img: 'https://koloboros.wordpress.com/wp-content/uploads/2025/09/gemini_generated_image_4q693h4q693h4q69.jpeg?w=300',
   q: 'Okurken kimin konuştuğuna dikkat et, Alemgezer. Kimin sustuğuna daha çok.',
   qby: 'İsimur, Haşmetli Ceremo’nun Vakanivüs’i',
@@ -211,11 +214,27 @@ function pin(id) {
   codex.classList.remove('min');
 }
 
+// in-world books (WordPress sub-categories) and their spine colours
+const SHELF = ['Oro Tarihi ve Menkıbeleri', 'Oro Sosyobiyolojisi', 'Oro Kozmolojisi ve Liturji', 'Oro Dünyası'];
+const SPINE = {
+  'Cihannümaül Sefer ve Ekspadisyon': '#b08848', 'Defter-i Şahikât': '#6f86a8', 'Dialektike-i Mezarat': '#8f7aa3',
+  'Kitab-ül Harikatül Mahlukat': '#7a9a5c', 'Kronülname-i Hakikat': '#b0584a', 'Oro’da Mâgî ve Lîturcî': '#5a9a96',
+  'Oro’nun Yeşermesi': '#a8834a', 'Risale-i Miras': '#c07a4a', 'Tasnîf-i Ahfâd': '#8f9a52',
+};
+const bookOf = id => (P[id]?.c || []).find(c => !SHELF.includes(c)) || '';
+const spine = b => SPINE[b] || '#8a7a64';
 function postHTML(id) {
   const p = P[id]; if (!p) return '';
   const img = p.i ? `<img class="thumb" src="${esc(p.i)}" alt="" loading="lazy">` : `<div class="thumb mono">${esc(p.t[0])}</div>`;
-  const chips = p.c.slice(0, 2).map(c => `<span class="chip">${esc(c)}</span>`).join('');
-  return `<a class="post" href="${esc(p.u)}" target="_blank" rel="noopener">${img}<div><h3>${esc(p.t)}</h3><div class="chips">${chips}</div><p>${esc(p.x)}</p></div></a>`;
+  const b = bookOf(id), col = spine(b);
+  const chip = b ? `<span class="chip" style="background:none;border:1px solid ${col}66;color:${col}">${esc(b)}</span>` : '';
+  return `<a class="post" href="${esc(p.u)}" target="_blank" rel="noopener" style="box-shadow:inset 3px 0 0 ${col}">${img}<div><h3>${esc(p.t)}</h3><div class="chips">${chip}</div><p>${esc(p.x)}</p></div></a>`;
+}
+// group a region's posts by the book they belong to; region-specific order is kept inside each book
+function byBook(ids) {
+  const groups = new Map();
+  [...new Set(ids)].forEach(id => { const b = bookOf(id) || 'Genel'; if (!groups.has(b)) groups.set(b, []); groups.get(b).push(id); });
+  return [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'tr'));
 }
 
 function renderRegion(r) {
@@ -224,10 +243,12 @@ function renderRegion(r) {
     (pinned ? `<button class="pin" title="Kapat" onclick="unpin()">×</button>` : '');
   let h = '';
   if (r.map) h += `<a class="enter" onclick="showMap('${r.map}')"><img src="3b/haarbova-mini.jpg" alt=""><span>${esc(D.maps[r.map].title)} haritasına gir →</span></a>`;
-  const books = BOOKS.filter(b => b.region === r.id);
+  const books = BOOKS.filter(b => (b.regions || []).includes(r.id));
   if (books.length) h += `<div class="grp">Kitap</div>` + books.map(bookHTML).join('');
-  h += `<div class="grp">${n} yazı</div>`;
-  r.groups.forEach(([g, ids]) => { if (g) h += `<div class="grp">${esc(g)}</div>`; h += ids.map(postHTML).join(''); });
+  const all = r.groups.flatMap(g => g[1]);
+  const grouped = byBook(all);
+  if (grouped.length > 1 && new Set(all).size >= 5) grouped.forEach(([b, ids]) => { h += `<div class="grp book-grp"><i style="background:${spine(b)}"></i>${esc(b)}<em>${ids.length}</em></div>` + ids.map(postHTML).join(''); });
+  else { h += `<div class="grp">${n} yazı</div>` + all.map(postHTML).join(''); }
   body.innerHTML = h; body.scrollTop = 0;
 }
 
