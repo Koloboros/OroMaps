@@ -56,6 +56,13 @@ input[type=range]{width:120px;accent-color:#a8362a;vertical-align:middle}
 .seal3:hover{filter:brightness(1.1)}
 .seal3 svg{width:25px;height:25px;fill:none;stroke:#5a1616;stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round}
 #seals{position:fixed;inset:0;pointer-events:none;z-index:4}
+.lifeTag{position:absolute;left:0;top:0;display:none;pointer-events:auto;cursor:pointer;white-space:nowrap;font-family:'Cinzel',serif;font-size:11.5px;font-weight:600;letter-spacing:.1em;color:#f3e6c4;padding:2px 8px;background:rgba(18,41,31,.86);border:1px solid rgba(217,169,58,.55);border-radius:2px}
+.lifeTag:hover{border-color:#f3d27a}
+.lifeTag.neb{background:rgba(122,31,26,.92);border-color:#f3d27a;color:#f3d27a;font-size:12.5px}
+#lifeTip{position:fixed;left:0;top:0;display:none;z-index:7;pointer-events:none;padding:5px 10px;background:rgba(18,12,10,.94);border:1px solid #6a4c20;max-width:260px}
+#lifeTip b{display:block;font-family:'Cinzel',serif;font-size:13px;font-weight:600;color:#f3e6c4}
+#lifeTip span{font-size:13.5px;color:#c9a070}
+#codex .izle{margin-top:9px}
 #codex{position:fixed;top:14px;right:14px;bottom:14px;width:min(380px,calc(100vw - 28px));display:none;flex-direction:column;overflow:hidden;z-index:6}
 #codex.open{display:flex}
 #codex header{padding:16px 18px 12px;border-bottom:1px solid rgba(216,205,180,.12);position:relative}
@@ -105,7 +112,9 @@ input[type=range]{width:120px;accent-color:#a8362a;vertical-align:middle}
       <button class="t on" id="tLabels">Yer adları</button>
       <button class="t" id="tContours">Gravür</button>
       <button class="t on" id="tTrees">Ağaçlar</button>
+      <button class="t on" id="tLife">Canlı dünya</button>
     </div>
+    <div class="row"><button class="t" id="nebBtn">Nebrukaddesar’ı izle</button></div>
     <div class="row"><label>Saat <input type="range" id="sun" min="0" max="1" step="0.01" value="0.26"></label></div>
     <div class="k" id="help"></div>
     <div class="row" style="margin-top:10px"><a href="../">← Külliyat haritasına dön</a></div>
@@ -124,6 +133,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { initLife } from './canli.js';
 
 const WORLD_W = 2000, VS = 62;
 const canvas = document.getElementById('c');
@@ -307,7 +317,7 @@ function smokeTex(dense) {
 const smokeBanks = new THREE.Group(), smokeCols = new THREE.Group(); scene.add(smokeBanks, smokeCols);
 
 // ---------- data ----------
-let W, D, HM, scn, terrain;
+let W, D, HM, scn, terrain, life;
 const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
 function sampleH(u, v) {
   const x = Math.min(Math.max(u, 0), 1) * (HM.w - 1), y = Math.min(Math.max(v, 0), 1) * (HM.h - 1);
@@ -357,6 +367,8 @@ async function init() {
   loadmsg.textContent = 'Kurumuş ormanlar dikiliyor…'; buildTrees();
   loadmsg.textContent = 'Surlar ve katedraller örülüyor…'; buildSettlements(); buildLandmarks(); buildWar();
   buildSmoke(); buildLabels(); buildSeals(); setupMini(); resetView();
+  loadmsg.textContent = 'Kervanlar yola çıkıyor…';
+  life = await initLife({ scene, camera, controls, canvas, fToXZ, groundY, sRGB, glowTex, snapToLand, openCodex, W, D, getMode: () => mode, labelsOn: () => showLabels });
   const L = document.getElementById('load'); L.style.opacity = 0; setTimeout(() => L.remove(), 900);
 }
 
@@ -785,9 +797,10 @@ function openCodex(r) {
   const ids = [...new Set(r.groups.flatMap(g => g[1]))], groups = new Map();
   ids.forEach(id => { const b = bookOf(id) || 'Genel'; if (!groups.has(b)) groups.set(b, []); groups.get(b).push(id); });
   let h = '';
-  if (NEBRU.regions.includes(r.id)) h += `<div class="grp">Kitap</div><div class="book"><img src="${NEBRU.img}" alt=""><div><h3>${NEBRU.t}</h3><div class="by">${NEBRU.by}</div><q>${NEBRU.q}</q><a class="buy" href="${NEBRU.buy}" target="_blank" rel="noopener">Satın Al</a></div></div>`;
+  if (NEBRU.regions.includes(r.id) || r.book) h += `<div class="grp">Kitap</div><div class="book"><img src="${NEBRU.img}" alt=""><div><h3>${NEBRU.t}</h3><div class="by">${NEBRU.by}</div><q>${NEBRU.q}</q><a class="buy" href="${NEBRU.buy}" target="_blank" rel="noopener">Satın Al</a></div></div>`;
   if (ids.length >= 5 && groups.size > 1) [...groups.entries()].sort((a, b) => b[1].length - a[1].length).forEach(([b, list]) => { h += `<div class="grp book-grp"><i style="background:${spineOf(b)}"></i>${escH(b)}<em>${list.length}</em></div>` + list.map(postRow).join(''); });
-  else h += `<div class="grp">${ids.length} yazı</div>` + ids.map(postRow).join('');
+  else if (ids.length) h += `<div class="grp">${ids.length} yazı</div>` + ids.map(postRow).join('');
+  if (r.html) h += `<div style="margin:12px 6px">${r.html}</div>`;
   codexEl.querySelector('header').innerHTML = `<div class="kicker">${escH(r.s || '')}</div><h2>${escH(r.n)}</h2><p class="desc">${escH(r.d || '')}</p><button class="t x" title="Kapat">×</button>`;
   codexEl.querySelector('.x').onclick = () => codexEl.classList.remove('open');
   codexEl.querySelector('.body').innerHTML = h; codexEl.querySelector('.body').scrollTop = 0; codexEl.classList.add('open');
@@ -825,6 +838,7 @@ async function setupMini() {
 function drawMini() {
   if (!mmBase) return; mg.drawImage(mmBase, 0, 0);
   const p = mode === 'orbit' ? controls.target : camera.position, dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  if (life) life.drawMini(mg, mm.width, mm.height);
   mg.save(); mg.translate((p.x + W / 2) / W * mm.width, (p.z + D / 2) / D * mm.height); mg.rotate(Math.atan2(dir.z, dir.x));
   mg.fillStyle = '#d9c54a'; mg.strokeStyle = '#120d0a'; mg.lineWidth = 1.5; mg.beginPath(); mg.moveTo(9, 0); mg.lineTo(-6, -6); mg.lineTo(-3, 0); mg.lineTo(-6, 6); mg.closePath(); mg.fill(); mg.stroke(); mg.restore();
 }
@@ -924,13 +938,15 @@ function toggle(id) {
   if (id === 'tLabels') showLabels = on;
   if (id === 'tContours' && terrain) terrain.material.uniforms.contours.value = on ? 1 : 0;
   if (id === 'tTrees') treeGroup.visible = on;
+  if (id === 'tLife' && life) life.setVisible(on);
 }
-['tLabels', 'tContours', 'tTrees'].forEach(id => document.getElementById(id).onclick = () => toggle(id));
+['tLabels', 'tContours', 'tTrees', 'tLife'].forEach(id => document.getElementById(id).onclick = () => toggle(id));
+document.getElementById('nebBtn').onclick = () => life && life.followNeb();
 document.getElementById('sun').oninput = e => setSun(+e.target.value);
 document.getElementById('collapse').onclick = () => { const t = document.getElementById('top'); t.classList.toggle('min'); document.getElementById('collapse').textContent = t.classList.contains('min') ? '+' : '–'; };
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); grade.uniforms.res.value.set(innerWidth, innerHeight); });
 setSun(.26); setMode('orbit');
-window.oro3d = { camera, controls, goTo, uvToXZ: (u, v) => uvToXZ(u, v), fToXZ: (x, y) => fToXZ(x, y), groundY: (x, z) => groundY(x, z) };
+window.oro3d = { get life() { return life; }, camera, controls, goTo, uvToXZ: (u, v) => uvToXZ(u, v), fToXZ: (x, y) => fToXZ(x, y), groundY: (x, z) => groundY(x, z) };
 
 const clock = new THREE.Clock();
 function frame() {
@@ -942,6 +958,7 @@ function frame() {
     for (const l of lights) { const u = l.userData; l.material.opacity = u.base * (.8 + .2 * Math.sin(t * 7 + u.ph) * Math.sin(t * 3.1 + u.ph * 2)); if (u.bob) l.position.y = u.y + Math.sin(t * 1.3 + u.ph) * u.bob; }
     for (const s of spinners) s.rotation.y += dt * .4;
     for (const v of portalVeils) v.material.opacity = .22 + .1 * Math.sin(t * 2.3);
+    if (life) life.update(dt, t);
     updateLabels(); updateSeals(); drawMini();
   }
   composer.render(); requestAnimationFrame(frame);
