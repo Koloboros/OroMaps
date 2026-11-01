@@ -8,7 +8,7 @@ const SEDEF = '#f4ecdc', CAM = '#12291f', ALTIN = '#d9a93a', KIRMIZI = '#9a2828'
 
 export async function initLife(ctx) {
   const { scene, camera, controls, canvas, fToXZ, groundY, sRGB, glowTex, snapToLand, openCodex, getMode, W, D, Q } = ctx;
-  const yol = await (await fetch('yollar.json?v=2')).json();
+  const yol = await (await fetch('yollar.json?v=3')).json();
   const root = new THREE.Group(); scene.add(root);
   const G = (x, z) => Math.max(groundY(x, z), 0);
 
@@ -57,7 +57,7 @@ export async function initLife(ctx) {
   class Kind {
     constructor(geo, n, opts = {}) {
       this.m = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: opts.single ? THREE.FrontSide : THREE.DoubleSide }), n);
-      ctx.patchWorld(this.m.material); this.m.frustumCulled = false; this.m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.m.count = 0; root.add(this.m); this.i = 0; this.max = n;
+      ctx.patchWorld(this.m.material, false, false); this.m.frustumCulled = false; this.m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.m.count = 0; root.add(this.m); this.i = 0; this.max = n;
     }
     begin() { this.i = 0; }
     put(x, y, z, yaw, s, sy = s, rx = 0, rz = 0) {
@@ -69,11 +69,12 @@ export async function initLife(ctx) {
   }
   Object.assign(Kind, { e: new THREE.Euler(), q: new THREE.Quaternion(), p: new THREE.Vector3(), s: new THREE.Vector3(), m4: new THREE.Matrix4() });
   const K = {
-    shipW: new Kind(shipGeo('#efe6d2', '#5a3e28', KIRMIZI), 8), shipR: new Kind(shipGeo('#a8322a', '#4a3020', ALTIN), 6), shipB: new Kind(shipGeo('#26262e', '#2a2420', '#8a8a96'), 4), shipG: new Kind(shipGeo('#2c5a48', '#3a2c20', ALTIN), 4),
+    shipW: new Kind(shipGeo('#efe6d2', '#5a3e28', KIRMIZI), 13), shipR: new Kind(shipGeo('#a8322a', '#4a3020', ALTIN), 6), shipB: new Kind(shipGeo('#26262e', '#2a2420', '#8a8a96'), 4), shipG: new Kind(shipGeo('#2c5a48', '#3a2c20', ALTIN), 4),
     boat: new Kind(boatGeo, 30), camel: new Kind(camelGeo('#7a2a22'), 40), camelG: new Kind(camelGeo('#d8c9a4'), 30),
     envoy: new Kind(riderGeo('#efe6d2', KIRMIZI), 8), envoyD: new Kind(riderGeo('#3a3438', '#7a1f1a'), 4), ucm: new Kind(riderGeo('#a8562e', '#a8562e'), 14), guard: new Kind(riderGeo('#5a4632'), 16),
     solA: new Kind(soldierGeo('#3e3a3a', '#6a1c18', '#6a6a72'), 190, { single: true }), solB: new Kind(soldierGeo('#d8d2c2', '#2f5a7a', '#b8a050'), 190, { single: true }),
     shipP: new Kind(shipGeo('#16161c', '#1c1612', '#b02018'), 24), corpse: new Kind(M(at(paint(box(.5, .22, 1.6), '#c9b8a0'), 0, 0, 0), at(paint(ico(.22), '#d8c8b0'), 0, .05, .95)), 40, { single: true }),
+    serp: new Kind(paint(ico(1, 1), '#1c4a58'), 100, { single: true }), serpH: new Kind(M(at(paint(ico(1, 1), '#163c4a'), 0, 0, 0, 0, 0, 0, .9, .8, 1.5), at(paint(cone(.28, 1.5, 4), '#d9b45a'), .45, .8, -.4, -.5), at(paint(cone(.28, 1.5, 4), '#d9b45a'), -.45, .8, -.4, -.5), at(paint(ico(.14), '#ffd24a'), .5, .25, .8), at(paint(ico(.14), '#ffd24a'), -.5, .25, .8)), 4, { single: true }), tent: new Kind(paint(ico(1, 1), '#6a3050'), 260, { single: true }),
     gak: new Kind(gakGeo, 40), bird: new Kind(birdGeo('#3a3a3e'), 220), birdW: new Kind(birdGeo('#e0d8c8'), 120), owl: new Kind(wingGeo, 6), raven: new Kind(M(birdGeo('#14141a'), at(paint(ico(.22), '#14141a'), 0, 0, 0, 0, 0, 0, 1, 1, 2)), 3),
     arrow: new Kind(M(at(paint(box(.03, .03, 1.5), '#2a2420'), 0, 0, 0)), 40, { single: true }), worm: new Kind(paint(ico(1, 1), '#d8b890'), 18, { single: true }),
   };
@@ -118,7 +119,6 @@ export async function initLife(ctx) {
     { r: 'k_tuz', k: 'camelG', n: 8, v: 1.6, ph: 120, nm: 'Tuz Kervanı', s: 'Kavurova', d: 'Küfkent’in evleri lanete karşı tuzla kaplanır; bu develer o tuzu Haarbova’ya taşır.', ids: [595, 724] },
     { r: 'k_tis', k: 'camel', n: 5, v: 1.5, ph: 60, nm: 'Tıskent Yolu', s: 'Zerksoy diyarı', d: 'Yobuzcuk böcekleri kervanın ardından gelir; nerede Zerksoy, orada ölü deri vardır.', ids: [531] },
     { r: 'k_pay', k: 'camel', n: 6, v: 1.8, ph: 10, nm: 'Çiftçenet Kervanı', s: 'Payendegân', d: 'Bereketli vadilerin mahsulü payitahtın ambarlarına iner.', ids: [772] },
-    { r: 'k_tos', k: 'camelG', n: 4, v: 1.3, ph: 0, nm: 'Tosparlak Yolcuları', s: 'Or', d: 'Deniz aşırı kıtanın dolambaçlı yollarında, adı henüz yazılmamış tüccarlar.', ids: [] },
   ].map(o => ({ ...o, route: R[o.r], a: actor({ n: o.nm, s: o.s, d: o.d, ids: o.ids, kind: 'kervan' }) }));
   const ENV = [
     { r: 'e_pay', k: 'envoy', v: 4.6, ph: 0, n: 'Yüce Meclis Elçisi', s: 'Payendegân’dan Bozgunluk’a', d: 'Mühürlü ferman taşır. Dermançöl’de ona okunacak tek cevap, kılıcın sesidir.', ids: [772, 789] },
@@ -164,6 +164,10 @@ export async function initLife(ctx) {
     const [X, Z] = fToXZ(x, y); const fire = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: sRGB('#ff9030'), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })); root.add(fire);
     dragons.push({ g: dragon(a, b), X, Z, r, h: h + G(X, Z), sp, ph, fire, a: actor({ n: 'Ejderân', s: 'Ceremo göğü', d: 'Ceremo’ya varmanın iki yolu bilinir: bir ejderân sürmek, yahut anlam yolunda ölmek. Bunlar binicisini bekliyor.', ids: [], html: LINK.sozluk, kind: 'ejderha', tag: i ? null : 'Ejderânlar' }) });
   });
+
+  dragons.push({ far: [fToXZ(1285, 285), fToXZ(235, 120)], T: 240, ph: 0, g: dragon('#d9b45a', '#3a6a5a'), h: 118, sp: 1, fire: new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: sRGB('#ff9030'), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })), a: actor({ n: 'Tosparlak Ejderânı', s: 'Ceremo’dan Tosparlak’a', d: 'Ağı aşabilen tek kanatlılar. Ceremo ile kraliçenin diyarı arasında haber ve hediye taşırlar.', ids: [], html: LINK.sozluk, kind: 'ejderha' }) });
+  dragons.push({ far: [fToXZ(1285, 285), fToXZ(235, 120)], T: 310, ph: 150, g: dragon('#7a2a3a', '#d9b45a'), h: 96, sp: 1, fire: new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: sRGB('#ff9030'), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })), a: actor({ n: 'Tosparlak Ejderânı', s: 'Ceremo’dan Tosparlak’a', d: 'Ağı aşabilen tek kanatlılar. Ceremo ile kraliçenin diyarı arasında haber ve hediye taşırlar.', ids: [], html: LINK.sozluk, kind: 'ejderha' }) });
+  for (const d of dragons) if (d.far) root.add(d.fire);
 
   // ---------- portal: dönen girdap, yükselen zerreler ----------
   const swirlTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.translate(128, 128); for (let a = 0; a < 3; a++) { g.rotate(2.094); g.beginPath(); for (let t = 0; t < 1; t += .01) { const r = t * 124, th = t * 7; g.lineTo(Math.cos(th) * r, Math.sin(th) * r); } g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 10; g.stroke(); } const t = new THREE.CanvasTexture(c); return t; })();
@@ -282,7 +286,7 @@ export async function initLife(ctx) {
         void main(){ vec3 v = normalize(cameraPosition - vW); float rim = pow(1. - abs(dot(normalize(vN), v)), 2.2);
           vec2 uv = vec2(atan(vP.z, vP.x) * 11., vP.y * 15.);
           float l = web(uv), wave = pow(.5 + .5 * sin(vP.y * 9. - time * 1.1 + sin(atan(vP.z, vP.x) * 3.) * 1.5), 8.);
-          float age = time - hitT, dh = length(vW - hit), ring = exp(-pow((dh - age * 34.) / 7., 2.)) * exp(-age * .7);
+          float age = time - hitT, dh = length(vW - hit), q = (dh - age * 34.) / 7., ring = exp(-q * q) * exp(-age * .7);
           float a = l * (.035 + rim * .2 + wave * .2 + ring * 1.6) + rim * .03 + ring * .22 + (1. - smoothstep(0., .03, vP.y)) * .32;
           gl_FragColor = vec4(mix(vec3(.98, .82, .42), vec3(.6, .9, 1.), wave * .6 + ring) * a, a);
           #include <colorspace_fragment>
@@ -307,6 +311,36 @@ export async function initLife(ctx) {
     root.add(g); actor({ n, s: 'Epikteko’nun güney adaları', d: 'Kutsal, damarsız mermer buradan çıkar. Payitahtın sütunları bu adaların eksiğidir.', ids: [772], kind: 'ocak', tag: n === 'Sütunlu Mermer Ocağı' ? n : null, at: [pos[0], Y + 10, pos[1]] });
     return { X: pos[0], Y, Z: pos[1], crane, blk, n: x };
   }).filter(Boolean);
+
+  // ---------- Tosparlak: kraliçenin sessiz diyarı ----------
+  const TOS = (() => { const [X, Z] = fToXZ(225, 135), pos = snapToLand(...fToXZ(246, 92), 30) || fToXZ(246, 92), Y = G(pos[0], pos[1]), g = new THREE.Group(); g.position.set(pos[0], Y, pos[1]);
+    const pearl = new THREE.MeshStandardMaterial({ color: sRGB('#f4efe6'), roughness: .35, metalness: .15, flatShading: true }), gold = new THREE.MeshStandardMaterial({ color: sRGB('#d9b45a'), roughness: .3, metalness: .75, flatShading: true }), glass = new THREE.MeshStandardMaterial({ color: sRGB('#a8e4e0'), emissive: sRGB('#5ac8c0'), emissiveIntensity: .5, roughness: .1, metalness: .3, flatShading: true, transparent: true, opacity: .82 });
+    const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+    add(new THREE.CylinderGeometry(15, 17, 1.6, 12), pearl, 0, .8, 0); add(new THREE.CylinderGeometry(10, 12, 2.4, 12), pearl, 0, 2.8, 0); add(new THREE.CylinderGeometry(3, 4.2, 20, 10), pearl, 0, 13, 0); add(new THREE.ConeGeometry(3.4, 12, 10), gold, 0, 29, 0);
+    for (let i = 0; i < 6; i++) { const a = i * 1.047, r = i % 2 ? 11 : 8, h = i % 2 ? 11 : 15, x = Math.cos(a) * r, z = Math.sin(a) * r; add(new THREE.CylinderGeometry(1, 1.4, h, 8), pearl, x, 2 + h / 2, z); add(new THREE.ConeGeometry(1.35, 5, 8), gold, x, 4.5 + h, z); }
+    add(new THREE.SphereGeometry(5.6, 14, 8, 0, 6.3, 0, 1.57), glass, 0, 4, 0);
+    const crystals = []; for (let i = 0; i < 5; i++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(1.2, 0), glass); g.add(c); crystals.push({ c, i }); }
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: sRGB('#bfeee4'), transparent: true, opacity: .3, blending: THREE.AdditiveBlending, depthWrite: false })); halo.scale.setScalar(70); halo.position.y = 18; g.add(halo);
+    root.add(g);
+    actor({ n: 'Kraliçenin Sarayı', s: 'Tosparlak', d: 'Diyarın kraliçesi burada yaşar ve kalabalıktan pek haz etmez. Çevresindeki sular bu yüzden canavarlara emanettir; pırıltısına ancak davet edilenler varır.', ids: [], html: LINK.sozluk, kind: 'saray', tag: 'Kraliçenin Sarayı', at: [pos[0], Y + 28, pos[1]] });
+    return { X, Z, crystals };
+  })();
+  // periler: ada üzerinde süzülen ışıklar; tek çizimle yüzlerce nokta
+  const FAE = (() => { const n = Q.detail ? (Q.flock > 5 ? 520 : 340) : 120, p = new Float32Array(n * 3), a = new Float32Array(n), c = new Float32Array(n * 3), pal = ['#ffe7a0', '#c9b8ff', '#a8fff0', '#ffd0ea'].map(sRGB);
+    for (let i = 0; i < n; i++) { let x, z, tries = 0; do { const r = Math.sqrt(((i * 7919 + tries * 104729) % 1000) / 1000), th = i * 2.399 + tries; x = TOS.X + Math.cos(th) * r * 200; z = TOS.Z + Math.sin(th) * r * 150; tries++; } while (groundY(x, z) < .4 && tries < 12); p.set([x, G(x, z) + 2 + (i * 31 % 17), z], i * 3); a[i] = i * .61; const k = pal[i % 4]; c.set([k.r, k.g, k.b], i * 3); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3)); g.setAttribute('aP', new THREE.BufferAttribute(a, 1)); g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    const u = { time: { value: 0 }, px: { value: Math.min(devicePixelRatio, Q.pr) } };
+    const m = new THREE.Points(g, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: u, vertexColors: true,
+      vertexShader: `attribute float aP; uniform float time, px; varying vec3 vC; varying float vA; void main(){ vec3 q = position + vec3(sin(time * .5 + aP) * 3., sin(time * .8 + aP * 2.) * 1.6, cos(time * .43 + aP * 3.) * 3.); vC = color; vA = .35 + .65 * pow(.5 + .5 * sin(time * 2.2 + aP * 5.), 3.); vec4 mv = viewMatrix * vec4(q, 1.); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(420. / -mv.z, 3., 14.) * px; }`,
+      fragmentShader: `varying vec3 vC; varying float vA; void main(){ float r = length(gl_PointCoord - .5) * 2.; gl_FragColor = vec4(vC * 1.6, pow(max(1. - r, 0.), 2.) * vA);
+        #include <colorspace_fragment>
+      }` })); m.frustumCulled = false; root.add(m); return { u };
+  })();
+  actor({ n: 'Periler', s: 'Tosparlak', d: 'Masalların, perilerin ve pırıltılı, nezih hayatların diyarı. İnsan azdır; akşam olunca korular kendi ışığıyla yanar.', ids: [], html: LINK.sozluk, kind: 'peri', tag: 'Periler', at: [TOS.X + 60, 16, TOS.Z + 40] });
+  // deniz canavarları
+  const mR = new Route(yol.m_tos), SERP = [0, .36, .71].map((f, i) => ({ f, v: 6 + i * .8, a: actor({ n: ['Sarmal Bekçi', 'Mavi Yılan', 'Kıyı Yılanı'][i], s: 'Tosparlak suları', d: 'Dev deniz yılanları adayı dönerek korur. Gemiler bu yüzden Tosparlak’a yaklaşmaz.', ids: [], html: LINK.sozluk, kind: 'canavar', tag: i ? null : 'Deniz Canavarları' }) }));
+  const KRAKEN = yol._canavar.slice(0, 2).map(([x, y], i) => { const [X, Z] = fToXZ(x, y); return { X, Z, ph: i * 9, a: actor({ n: 'Kraken', s: 'Tosparlak açıkları', d: 'Kolları sudan yükselir, sonra yine kaybolur. Kraliçenin izni olmadan geçen gemi, buradan bir daha dönmez.', ids: [], html: LINK.sozluk, kind: 'canavar', at: [X, 6, Z] }) }; });
+  const LEV = (() => { const [x, y] = yol._canavar[2], [X, Z] = fToXZ(x, y), g = new THREE.Group(), m = new THREE.MeshLambertMaterial({ color: sRGB('#31565e'), flatShading: true }); const b = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), m); b.scale.set(4, 2.4, 13); g.add(b); const tail = new THREE.Mesh(new THREE.BoxGeometry(9, .3, 3.2), m); tail.position.set(0, .9, -14); g.add(tail); root.add(g); const sp = new THREE.Sprite(fxMat('#dff2f4', false)); sp.scale.set(5, 14, 1); root.add(sp); return { X, Z, g, sp, a: actor({ n: 'Leviathan', s: 'Tosparlak’ın güneyi', d: 'Sırtı bir ada sanılır; soluk alıp yeniden dibe iner.', ids: [], html: LINK.sozluk, kind: 'canavar', at: [X, 4, Z] }) }; })();
 
   // ---------- görünen ad, ipucu, izleme ----------
   const tagsEl = document.getElementById('labels'), tip = document.createElement('div'); tip.id = 'lifeTip'; document.body.appendChild(tip);
@@ -370,7 +404,10 @@ export async function initLife(ctx) {
     { const c = (t % 34) / 7; if (c < 1) { for (let i = 0; i < 16; i++) { const u = c * 1.6 - i * .045; if (u < 0 || u > 1) continue; const x = WORM.X - 22 + u * 44, y = G(WORM.X, WORM.Z) + Math.sin(u * Math.PI) * 13 - 1.2, r = 2 - Math.abs(i - 8) * .1; K.worm.put(x, y, WORM.Z + Math.sin(u * 6) * 2, 0, r); } } }
     // ejderânlar
     for (const d of dragons) {
-      const a = t * d.sp + d.ph, x = d.X + Math.cos(a) * d.r, z = d.Z + Math.sin(a) * d.r * .8, y = d.h + Math.sin(a * 2.2) * 9, dx = -Math.sin(a) * d.sp, dz = Math.cos(a) * d.sp * .8, s = Math.max(1.1, vs(x, y, z) * .9);
+      let x, y, z, dx, dz;
+      if (d.far) { const w = 6.283 * (t + d.ph) / d.T, u = .5 - .5 * Math.cos(w), u2 = .5 - .5 * Math.cos(w + .02), [A, B] = d.far, lat = Math.sin(u * 9.4) * 46, lat2 = Math.sin(u2 * 9.4) * 46; x = A[0] + (B[0] - A[0]) * u; z = A[1] + (B[1] - A[1]) * u + lat; y = d.h + Math.sin(w * 7) * 9; dx = (B[0] - A[0]) * (u2 - u) + .0001; dz = (B[1] - A[1]) * (u2 - u) + lat2 - lat; }
+      else { const a = t * d.sp + d.ph; x = d.X + Math.cos(a) * d.r; z = d.Z + Math.sin(a) * d.r * .8; y = d.h + Math.sin(a * 2.2) * 9; dx = -Math.sin(a) * d.sp; dz = Math.cos(a) * d.sp * .8; }
+      const s = Math.max(1.1, vs(x, y, z) * .9);
       { const nd = ((x - CER.X) / CER.RX) ** 2 + ((z - CER.Z) / CER.RZ) ** 2 + (y / CER.H) ** 2, side = nd > 1; if (d.side !== undefined && d.side !== side) { CER.u.hit.value.set(x, y, z); CER.u.hitT.value = t; } d.side = side; }
       d.g.position.set(x, y, z); d.g.rotation.set(0, Math.atan2(dx, dz), -Math.sign(d.sp) * .22); d.g.scale.setScalar(s);
       const fl = Math.sin(t * 2.4 + d.ph) * .55; d.g.userData.L.rotation.z = fl; d.g.userData.R.rotation.z = -fl; d.a.pos.set(x, y, z);
@@ -406,6 +443,11 @@ export async function initLife(ctx) {
     for (const g of CER.glow) { const a = g.a + t * .05, l = (t * .06 + g.i * .13) % 1, [x, z] = [CER.X + Math.cos(a) * g.r, CER.Z + Math.sin(a) * g.r * .9]; g.s.position.set(x, G(x, z) + 3 + l * 34, z); g.s.material.opacity = .8 * Math.sin(l * Math.PI); }
     // mermer ocakları
     for (const q of QUARRY) { const v = t * .22 + q.n, sw = Math.sin(v); q.crane.rotation.y = sw * 1.05; q.blk.position.y = .9 + Math.max(0, Math.sin(v * 2)) * 2.4; }
+    // Tosparlak
+    FAE.u.time.value = t; for (const k of TOS.crystals) { const a = t * .35 + k.i * 1.257; k.c.position.set(Math.cos(a) * 9, 22 + Math.sin(t + k.i) * 1.6, Math.sin(a) * 9); k.c.rotation.y = t; }
+    for (const o of SERP) { const L = mR.len, d0 = (t * o.v + o.f * L) % L, s = Math.max(1, vs(...mR.at(d0).flatMap((v, i) => i ? [0, v] : [v]))) * 1.35, n = Q.detail ? 30 : 16; for (let i = 0; i < n; i++) { const sp = 1.55 * s * (30 / n), d = ((d0 - i * sp) % L + L) % L, [x, z] = mR.at(d), hump = Math.sin(t * 1.1 - i * .34 * (30 / n)), r = (1.7 - i / n * 1.05) * s; K.serp.put(x, hump * 2.3 * s - .55 * s, z, 0, r); if (!i) { const [a, b] = mR.at(((d - 2) % L + L) % L); K.serpH.put(x, 1.6 * s, z, Math.atan2(x - a, z - b), 1.5 * s); o.a.pos.set(x, 3 * s, z); mini.push([x, z, '#7a4ad0']); } } foam(age => mR.at(((d0 - o.v * age) % L + L) % L), s * .7); }
+    for (const q of KRAKEN) { const s = Math.max(1, vs(q.X, 0, q.Z)) * 1.2, c = ((t + q.ph) % 26) / 26, rise = .35 + .65 * Math.abs(Math.sin(c * Math.PI)), arms = Q.detail ? 7 : 5, segs = Q.detail ? 18 : 10; for (let a = 0; a < arms; a++) { const th = a * 6.283 / arms + .4, bx = q.X + Math.cos(th) * 7 * s, bz = q.Z + Math.sin(th) * 7 * s; for (let i = 0; i < segs; i++) { const f = i / segs, sway = Math.sin(t * 1.2 + a * 1.7 + f * 4) * f * 4 * s, y = (f * 22 * rise - 1.2) * s; K.tent.put(bx + Math.cos(th) * sway, y, bz + Math.sin(th) * sway, 0, (1.35 - f * 1.1) * s); } } mini.push([q.X, q.Z, '#7a4ad0']); }
+    { const c = (t % 34) / 34, up = Math.sin(Math.min(c * 3.4, 1) * Math.PI), s = Math.max(1, vs(LEV.X, 0, LEV.Z)); LEV.g.scale.setScalar(s); LEV.g.position.set(LEV.X + c * 26, up * 3.4 * s - 3.2 * s, LEV.Z); LEV.g.rotation.set(-.08, 1.57, 0); LEV.sp.position.set(LEV.X + c * 26 + 7 * s, 8 * s, LEV.Z); const spout = c > .08 && c < .22; LEV.sp.material.opacity = spout ? .62 * Math.sin((c - .08) / .14 * Math.PI) : 0; }
     // gemi izleri
     wakeU.time.value = t; for (let i = wi; i < wakes.count; i++) wakeA.array[i] = 0; wakes.count = wi; wakes.instanceMatrix.needsUpdate = true; wakeA.needsUpdate = true;
     for (const k in K) K[k].end();

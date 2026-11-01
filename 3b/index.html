@@ -180,11 +180,11 @@ const sun = new THREE.DirectionalLight(sRGB('#ffe2b0'), 2.4); scene.add(sun);
 const amb = new THREE.AmbientLight(sRGB('#7a6c58'), 0.95); scene.add(amb);
 
 // ---------- sky: lead lid, ash horizon, sick corona ----------
-const skyU = { top: { value: sRGB('#5d7a96') }, horizon: { value: sRGB('#d8c9a4') }, sunDir: LIGHT.sunDir, sunCol: { value: sRGB('#ffe2b0') }, corona: { value: sRGB('#e8c070') } };
+const skyU = { dusk: { value: 0 }, top: { value: sRGB('#5d7a96') }, horizon: { value: sRGB('#d8c9a4') }, sunDir: LIGHT.sunDir, sunCol: { value: sRGB('#ffe2b0') }, corona: { value: sRGB('#e8c070') } };
 const sky = new THREE.Mesh(new THREE.SphereGeometry(8000, 32, 16), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false, uniforms: skyU,
   vertexShader: `varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
-  fragmentShader: `uniform vec3 top, horizon, sunDir, sunCol, corona; varying vec3 vD;
+  fragmentShader: `uniform vec3 top, horizon, sunDir, sunCol, corona; uniform float dusk; varying vec3 vD;
     float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
       return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
@@ -195,6 +195,12 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(8000, 32, 16), new THREE.Sha
       c = mix(c, mix(c, vec3(1.), .55), smoothstep(.04, .3, d.y) * smoothstep(.5, .8, cl) * .6);
       float s = max(dot(d, normalize(sunDir)), 0.);
       c += sunCol * pow(s, 700.) * 1.1 + sunCol * pow(s, 9.) * .22 + corona * pow(s, 2.) * .07;
+      float st = step(.9965, h21(floor(d.xz / max(d.y, .08) * 90.))) * smoothstep(.02, .3, d.y);
+      c += vec3(.95, .93, .86) * st * dusk * .9;
+      vec3 m1 = normalize(vec3(-.55, .42, -.72)), m2 = normalize(vec3(-.36, .5, -.79));                // Sedef Ay ve Kanlı Ay
+      float d1 = acos(clamp(dot(d, m1), -1., 1.)), d2 = acos(clamp(dot(d, m2), -1., 1.)), k = .35 + dusk * .65;
+      c = mix(c, vec3(.96, .93, .86) * (.86 + .14 * vn(d.xy * 60.)), (1. - smoothstep(.052, .056, d1)) * k); c += vec3(.9, .86, .74) * exp(-d1 * 9.) * .1 * k;
+      c = mix(c, vec3(.72, .13, .09) * (.8 + .3 * vn(d.xy * 70.)), (1. - smoothstep(.036, .04, d2)) * k); c += vec3(.8, .16, .1) * exp(-d2 * 12.) * .1 * k;
       gl_FragColor = vec4(c, 1.);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
@@ -206,7 +212,7 @@ scene.add(sky);
 // Işık önceden pişirilir (gölge, vadi derinliği, nesne gölgesi); kare başına yalnızca doku okunur, telefon da taşır.
 const SURF = { det: { value: null }, shT: { value: null }, objT: { value: null }, regT: { value: null }, climT: { value: null }, season: { value: 0 }, size: { value: new THREE.Vector2() }, time: { value: 0 }, airCol: { value: sRGB('#c9bd9a') } };
 // ağaç, yapı ve birimler de arazinin ışığını, iklimini paylaşır; karı üstlerinde görürüz
-function patchWorld(mat, wind = false) {
+function patchWorld(mat, wind = false, snowy = true) {
   mat.onBeforeCompile = sh => {
     for (const k of ['regT', 'climT', 'shT', 'season', 'size', 'time']) sh.uniforms[k] = SURF[k];
     sh.vertexShader = `uniform sampler2D regT, climT, shT; uniform float season, time; uniform vec2 size; varying vec3 vTintW; varying float vSnowW;\n` + sh.vertexShader.replace('#include <project_vertex>', `
@@ -216,10 +222,10 @@ function patchWorld(mat, wind = false) {
       vec4 wp0 = modelMatrix * vec4(transformed, 1.);
       #endif
       vec2 uvW = (wp0.xz + size * .5) / size;
-      vec3 rgW = textureLod(regT, uvW, 0.).rgb, ikW = textureLod(climT, uvW, 0.).rgb; float svW = mix(.56, 1., textureLod(shT, uvW, 0.).r);
-      vTintW = vec3(svW) * mix(vec3(1.), vec3(.3, .28, .36), rgW.b) * mix(vec3(1.), vec3(1.14, 1.1, .98), ikW.r);
+      vec3 rgW = textureLod(regT, uvW, 0.).rgb, ikW = textureLod(climT, uvW, 0.).rgb; float faeW = (1. - smoothstep(.82, 1.1, length((wp0.xz - vec2(-719., -545.)) / vec2(218., 168.)))); ikW.g *= 1. - faeW; float svW = mix(.56, 1., textureLod(shT, uvW, 0.).r);
+      vTintW = vec3(svW) * mix(vec3(1.), vec3(.3, .28, .36), rgW.b) * mix(vec3(1.), vec3(1.14, 1.1, .98), ikW.r) * mix(vec3(1.), vec3(1.08, 1.12, 1.14), faeW);
       float upW = smoothstep(.15, .75, normalize(mat3(modelMatrix) * normal).y);
-      vSnowW = smoothstep(.62, .78, ikW.g * 1.15 * season + wp0.y / 95. * season * .9) * upW * (1. - ikW.r);
+      vSnowW = ${snowy ? '1.' : '0.'} * smoothstep(.62, .78, ikW.g * 1.15 * season + wp0.y / 95. * season * .9) * upW * (1. - ikW.r);
       #include <project_vertex>
       ${wind ? 'gl_Position.xy += projectionMatrix[0][0] * vec2(sin(time * 1.3 + wp0.x * .4) * .02, 0.) * max(position.y, 0.) * .4;' : ''}`);
     sh.fragmentShader = `varying vec3 vTintW; varying float vSnowW;\n` + sh.fragmentShader.replace('#include <opaque_fragment>', `outgoingLight = mix(outgoingLight * vTintW, vec3(.86, .9, .96) * (.4 + .6 * vTintW), vSnowW);\n#include <opaque_fragment>`);
@@ -252,15 +258,16 @@ function terrainMaterial(map) {
         float green = clamp((a.g - a.r) * 7. + .35, 0., 1.);
         float sand = clamp((a.r - a.b) * 2.6 - .25, 0., 1.) * (1. - green);
         float rock = 1. - smoothstep(.62, .86, n.y);
-        vec3 rg = texture2D(regT, uvM).rgb, ik = texture2D(climT, uvM).rgb; float lum0 = dot(a, vec3(.3, .59, .11));
+        vec3 rg = texture2D(regT, uvM).rgb, ik = texture2D(climT, uvM).rgb; float fae = (1. - smoothstep(.82, 1.1, length((vW.xz - vec2(-719., -545.)) / vec2(218., 168.)))); ik.g *= 1. - fae; float lum0 = dot(a, vec3(.3, .59, .11));
         a = mix(a, a * vec3(.92, 1., .9) * .92, green * .55);                          // yeşiller çam tonuna
         a = mix(a, a * vec3(1.08, .98, .84), sand * .6);                               // kumlar hardala
         float flat0 = 1. - rock * .75;
-        a = mix(a, vec3(.74, .55, .3) * (.74 + .5 * macro), rg.r * flat0);                                    // Kavurova'nın kuzeyi çöl
+        a = mix(a, vec3(.62, .38, .15) * (.74 + .5 * macro), rg.r * flat0);                                    // Kavurova'nın kuzeyi çöl
         sand = max(sand, rg.r); green *= 1. - rg.r;
         a = mix(a, mix(vec3(.016, .012, .01), vec3(.085, .05, .03), smoothstep(.35, .8, macro)), rg.g * (1. - rock * .4));   // lanetli balçık
         a = mix(a, vec3(lum0) * vec3(.42, .4, .5) * .62, rg.b);                                              // Nihülüs
-        a = mix(a, mix(vec3(.2, .5, .17), vec3(.42, .68, .26), macro), ik.r * .8 * (1. - rock * .6));          // Ceremo
+        a = mix(a, mix(vec3(.05, .24, .035), vec3(.17, .42, .07), macro), ik.r * .86 * (1. - rock * .6));          // Ceremo
+        a = mix(a, mix(vec3(.012, .13, .06), vec3(.07, .3, .13), macro), fae * .86 * (1. - rock * .65));              // Tosparlak'ın zümrüdü
         a = mix(a, a * vec3(1.14, 1., .68), ik.b * (1. - season) * .55 * (1. - rg.g));                         // yaz sıcağı
         a = mix(a, a * mix(vec3(1., .86, .5), vec3(1.), season), (1. - ik.b) * ik.g * (1. - season) * .25);
         a = mix(a, vec3(dot(a, vec3(.33))) * vec3(.86, .9, .94), ik.g * season * .55);                         // kışın renk solar
@@ -279,7 +286,11 @@ function terrainMaterial(map) {
         float snow = smoothstep(thr, thr + .1, snowV) * (1. - ik.r) * (1. - rock * .4) * smoothstep(.15, .9, vY);
         a = mix(a, vec3(.88, .91, .96), snow);
         vec4 sh = texture2D(shT, uvM);
+        #ifdef DETAIL
         float cloud = smoothstep(.5, .74, texture2D(det, vW.xz * .0017 + time * vec2(.0022, .0009)).r * .65 + texture2D(det, vW.xz * .0053 - time * .0016).r * .35);
+        #else
+        float cloud = 0.;
+        #endif
         vec2 objUv = uvM - L.xz / max(L.y, .3) * 1.5 / size;
         float obj = max(texture2D(objT, objUv).r, texture2D(objT, uvM, 2.5).r * .85) * smoothstep(.1, .6, vY);
         float w = pow(smoothstep(0., 1., clamp((dot(n, L) + .3) / 1.3, 0., 1.)), 1.35);
@@ -287,7 +298,11 @@ function terrainMaterial(map) {
         vec3 light = mix(shadeCol, sunCol, w) + skyCol * .22 * (n.y * .5 + .5);
         light *= mix(.66, 1., sh.g) * mix(.74, 1., smoothstep(.25, .85, n.y));           // vadi derinliği ve yamaç kiri
         light *= mix(1., .4, rg.b) * mix(vec3(1.), vec3(1.2, 1.14, .98), ik.r);
+        light *= mix(vec3(1.), vec3(1.12, 1.14, 1.16), fae);
         vec3 c = a * light;
+        // kıyıya yakın ve kayalık yüzeyde doğal katman; Tosparlak'ta pırıltı
+        c *= 1. - rock * .14 * smoothstep(.45, .55, fract(vY * .62 + macro * 1.6)) * exp(-dist / 420.);
+        c += vec3(.9, .9, 1.) * fae * smoothstep(.8, .95, texture2D(det, vW.xz * .83).b) * pow(.5 + .5 * sin(time * 3.1 + vW.x * 1.7 + vW.z * 2.3), 4.) * exp(-dist / 620.) * .9;
         c += vec3(.08, .085, .09) * pow(1. - max(dot(n, v), 0.), 3.) * (1. - w);
         float wet = 1. - smoothstep(0., 5., vY);
         c += sunCol * pow(max(dot(reflect(-L, n), v), 0.), 24.) * .1 * wet;
@@ -305,7 +320,7 @@ function terrainMaterial(map) {
         }
         float air = 1. - exp(-dist * .00038);
         c = mix(c, mix(airCol, vec3(.016, .014, .024), rg.b), air * mix(.34, .85, rg.b));
-        c += vec3(.1, .085, .04) * ik.r * (.5 + .5 * macro) * (1. - rock);                                                 // hava perspektifi
+        c += vec3(.1, .085, .04) * ik.r * (.5 + .5 * macro) * (1. - rock) + vec3(.04, .06, .065) * fae;                                                 // hava perspektifi
         c = mix(c, airCol, (1. - smoothstep(2., 15., vY)) * smoothstep(120., 700., dist) * (.35 + .65 * macro) * .2);  // vadi sisi
         gl_FragColor = vec4(c, 1.);
         #include <tonemapping_fragment>
@@ -355,11 +370,12 @@ function bakeObjects() {
 // ---------- water: black oil, scum, mud tideline ----------
 const waterU = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
   time: { value: 0 }, hTex: { value: null }, size: { value: new THREE.Vector2() },
-  shallow: { value: sRGB('#5a9a8c') }, mid: { value: sRGB('#1c5a62') }, deep: { value: sRGB('#0e3442') }, det: SURF.det, regT: SURF.regT, climT: SURF.climT, season: SURF.season, skyT: { value: sRGB('#7a9ab0') },
+  shallow: { value: sRGB('#5a9a8c') }, mid: { value: sRGB('#1c5a62') }, deep: { value: sRGB('#0e3442') }, skyT: { value: sRGB('#7a9ab0') },
   fogC: { value: sRGB(FOG_HEX) }, sunC: { value: sRGB('#ffe2b0') } }]);
 waterU.sunDir = LIGHT.sunDir;
+Object.assign(waterU, { det: SURF.det, regT: SURF.regT, climT: SURF.climT, season: SURF.season });   // merge kopyaladığı için sonradan bağlanır
 const waterMat = new THREE.ShaderMaterial({
-  uniforms: waterU, transparent: true, fog: true, depthWrite: false,
+  uniforms: waterU, transparent: true, fog: true, depthWrite: false, defines: Q.detail ? { DETAIL: 1 } : {},
   vertexShader: `#include <common>
     #include <fog_pars_vertex>
     varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
@@ -374,9 +390,10 @@ const waterMat = new THREE.ShaderMaterial({
     vec2 wv(vec2 p, vec2 d, float f, float s){ return d * cos(dot(p, d) * f + time * s) * f; }
     void main(){
       vec2 uv = vec2((vW.x + size.x * .5) / size.x, (vW.z + size.y * .5) / size.y);
-      float inside = step(0., uv.x) * step(uv.x, 1.) * step(0., uv.y) * step(uv.y, 1.);
+      float inside = smoothstep(0., .07, min(min(uv.x, 1. - uv.x), min(uv.y, 1. - uv.y)));
       float h = texture2D(hTex, clamp(uv, 0., 1.)).r;
       float depth = mix(.3, max(-h, 0.), inside);
+      float fae = (1. - smoothstep(.82, 1.1, length((vW.xz - vec2(-719., -545.)) / vec2(218., 168.))));
       vec3 c = mix(shallow, mid, smoothstep(0., .025, depth));
       c = mix(c, deep, smoothstep(.025, .16, depth));
       float dist = length(cameraPosition - vW);
@@ -384,7 +401,11 @@ const waterMat = new THREE.ShaderMaterial({
       g += wv(p, normalize(vec2(1., .3)), .3, .6) * .02;
       g += wv(p, normalize(vec2(-.4, 1.)), .7, .9) * .015 * exp(-dist / 500.);
       g += wv(p, normalize(vec2(.7, -.8)), 1.7, 1.4) * .007 * exp(-dist / 150.);
+      #ifdef DETAIL
       vec2 rip = texture2D(det, p * .045 + time * vec2(.006, .004)).rg + texture2D(det, p * .13 - time * vec2(.007, .011)).rg - 1.;
+      #else
+      vec2 rip = texture2D(det, p * .045 + time * vec2(.006, .004)).rg * 2. - 1.;
+      #endif
       g += rip * .1 * exp(-dist / 520.);
       vec3 n = normalize(vec3(-g.x, 1., -g.y)), v = normalize(cameraPosition - vW);
       float fr = pow(1. - max(dot(n, v), 0.), 4.);
@@ -395,15 +416,20 @@ const waterMat = new THREE.ShaderMaterial({
       c = mix(c, vec3(.29, .29, .23) * .55, sc * .35 * coast);
       float band = smoothstep(.6, 1., sin(depth * 500. - time * .9) * .5 + .5) * (1. - smoothstep(0., .012, depth));
       float fn = texture2D(det, p * .09 + time * .004).r;
+      #ifdef DETAIL
+      float ca = abs(texture2D(det, p * .21 + time * .012).r - texture2D(det, p * .17 - time * .009).r); c += vec3(.14, .2, .18) * (1. - smoothstep(.0, .05, ca)) * (1. - smoothstep(.01, .08, depth)) * exp(-dist / 500.);  // sığlıkta ışık ağı
+      #endif
+      c = mix(c, vec3(.13, .62, .6), fae * .5 * (1. - smoothstep(.02, .16, depth) * .6));
       c = mix(c, vec3(.94, .92, .86), band * .5 * smoothstep(.3, .62, fn));
       c = mix(c, vec3(.92, .9, .82), (1. - smoothstep(0., .006 + fn * .008, depth)) * .7);
       c += vec3(.02, .015, 0.) * sin(depth * 300. + time * .4) * coast;
       vec3 rgW = texture2D(regT, clamp(uv, 0., 1.)).rgb, ikW = texture2D(climT, clamp(uv, 0., 1.)).rgb;
       c = mix(c, vec3(.18, .68, .62) + sunC * .04, ikW.r * .6 * (1. - smoothstep(0., .12, depth) * .55));
       c = mix(c, c * vec3(.1, .09, .14), rgW.b);
+      ikW.g *= 1. - fae;
       float ice = smoothstep(.62, .95, ikW.g * season * (1.5 - depth * 9.) + vn(p * .03) * .34) * (1. - ikW.r);
       c = mix(c, vec3(.74, .82, .88) * (.85 + .2 * vn(p * .2)), ice);
-      gl_FragColor = vec4(c, mix(.9, .975, smoothstep(0., .03, depth)));
+      gl_FragColor = vec4(c, mix(1., mix(.9, .975, smoothstep(0., .03, depth)), inside));
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
       #include <fog_fragment>
@@ -416,13 +442,18 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = Q.bloom ? new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), .22, .55, .92) : null;
 if (bloom) composer.addPass(bloom);
 const grade = new ShaderPass({
-  uniforms: { tDiffuse: { value: null }, time: { value: 0 }, res: { value: new THREE.Vector2(innerWidth, innerHeight) } },
+  defines: Q.detail ? { SHARP: 1 } : {},
+  uniforms: { tDiffuse: { value: null }, time: { value: 0 }, res: { value: new THREE.Vector2(innerWidth * pixelRatio, innerHeight * pixelRatio) } },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
   fragmentShader: `uniform sampler2D tDiffuse; uniform float time; uniform vec2 res; varying vec2 vUv;
     void main(){
       vec2 d = vUv - .5; float r = length(d);
       float ca = .0006 * r;
       vec3 c = vec3(texture2D(tDiffuse, vUv + d * ca).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - d * ca).b);
+      #ifdef SHARP
+      vec2 px = 1. / res; vec3 blur = (texture2D(tDiffuse, vUv + vec2(px.x, 0.)).rgb + texture2D(tDiffuse, vUv - vec2(px.x, 0.)).rgb + texture2D(tDiffuse, vUv + vec2(0., px.y)).rgb + texture2D(tDiffuse, vUv - vec2(0., px.y)).rgb) * .25;
+      c = max(c + (c - blur) * .45, 0.);
+      #endif
       float lum = dot(c, vec3(.299, .587, .114));
       vec3 tint = mix(vec3(.8, 1.02, .96), vec3(1.07, .98, .84), smoothstep(.02, .42, lum));  // gölge çam yeşili, ışık hardal
       c *= mix(vec3(1.), tint, .8);
@@ -439,11 +470,9 @@ composer.addPass(new OutputPass());
 
 // ---------- smoke: banks and columns ----------
 function smokeTex(dense) {
-  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
-  for (let i = 0; i < (dense ? 18 : 10); i++) {
-    const x = 30 + Math.random() * 68, y = 44 + Math.random() * 40, r = 14 + Math.random() * 26, gr = g.createRadialGradient(x, y, 0, x, y, r);
-    gr.addColorStop(0, dense ? 'rgba(90,84,76,.55)' : 'rgba(236,230,218,.7)'); gr.addColorStop(1, dense ? 'rgba(90,84,76,0)' : 'rgba(236,230,218,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
-  }
+  const c = document.createElement('canvas'); c.width = 256; c.height = dense ? 256 : 128; const g = c.getContext('2d'), H = c.height;
+  if (dense) { for (let i = 0; i < 18; i++) { const x = 60 + Math.random() * 136, y = 88 + Math.random() * 80, r = 28 + Math.random() * 52, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(90,84,76,.55)'); gr.addColorStop(1, 'rgba(90,84,76,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }
+  else { const puff = (shade, dy) => { for (let i = 0; i < 26; i++) { const t = (i + .5) / 26, x = 26 + t * 204, hump = Math.sin(t * Math.PI), r = (10 + Math.random() * 16) * (.45 + hump), y = H * .62 - Math.random() * 30 * hump + dy, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, shade); gr.addColorStop(1, shade.replace(/[\d.]+\)$/, '0)')); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }; puff('rgba(120,126,136,.5)', 14); puff('rgba(248,244,234,.78)', 0); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 const smokeBanks = new THREE.Group(), smokeCols = new THREE.Group(); scene.add(smokeBanks, smokeCols);
@@ -468,7 +497,7 @@ function snapToLand(x, z, maxR = 14) {
 }
 
 async function init() {
-  scn = await (await fetch('scene.json?v=2')).json();
+  scn = await (await fetch('scene.json?v=3')).json();
   loadmsg.textContent = 'Yükselti okunuyor…';
   const img = await load(Q.height);
   const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
@@ -527,7 +556,7 @@ function treeGeos() {
   // gnarled broadleaf: faceted, wind-bent crown plus two bare limbs
   const crown = mergeGeometries([blob(.5, 0, 1.0, 0), blob(.38, .34, .86, .1), blob(.34, -.3, .92, -.14)]);
   const limbs = mergeGeometries([branch(.55, .05, .03, .55, 1.0, 0), branch(.5, .05, .03, .6, -1.0, 1.4)]);
-  const crownR = mergeGeometries([blob(.62, 0, 1.05, 0, .85), blob(.46, .38, .88, .12, .8), blob(.44, -.34, .92, -.16, .8), blob(.4, .05, 1.45, .05, .8)]);
+  const crownR = Q.detail ? mergeGeometries([blob(.62, 0, 1.05, 0, .85), blob(.46, .38, .88, .12, .8), blob(.44, -.34, .92, -.16, .8), blob(.4, .05, 1.45, .05, .8)]) : blob(.74, 0, 1.08, 0, .95);
   const broad = mergeGeometries([trunk(), shadeByHeight(crownR, '#ffffff', '#8a8a80')]);
   // spear conifer
   const cones = [[.26, 1.5, .85], [.19, 1.1, 1.5], [.11, .8, 2.05]].map(([r, h, y]) => { const c = new THREE.ConeGeometry(r, h, 5); c.translate(0, y, 0); return X(c); });
@@ -665,6 +694,9 @@ function cathedral(K, x, z, k) {
 }
 function buildSettlements() {
   const LORE_SIZE = { 'Bozgunluk': 'capital', 'Epikteko': 'city', 'Kıskanköy': 'town', 'Alev Burun': 'town', 'Çukurgözü': 'town', 'Çölliman': 'town', 'Milaso': 'city', 'Kavurluk': 'town' };
+  const tosp = (x, y) => Math.hypot((x - 225) / 175, (y - 135) / 135) < 1;
+  scn.labels = scn.labels.filter(L => !(L.k === 'town' && tosp(L.u * 1600, L.v * 1142)));
+  scn.settlements = scn.settlements.filter(st => st.size === 'landmark' || !tosp(st.x, st.y));
   scn.settlements.forEach(st0 => {
     const st = { ...st0, size: LORE_SIZE[st0.name] || st0.size };
     if (st.size === 'landmark') { landmark(st); return; }
@@ -853,12 +885,12 @@ function buildWar() {
 }
 
 // ---------- smoke ----------
-const smokeMats = [smokeTex(false), smokeTex(false), smokeTex(true)].map(t => new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, opacity: .32, fog: true }));
+const smokeMats = [smokeTex(false), smokeTex(false), smokeTex(true)].map(t => new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, opacity: .62, fog: true }));
 function smokeColumn(x, y, z, k = 1) {
   for (let i = 0; i < 6; i++) { const s = new THREE.Sprite(smokeMats[2].clone()); s.material.opacity = .35; const sc = (6 + i * 3) * k; s.scale.set(sc, sc * 1.6, 1); s.position.set(x, y + i * 9 * k, z); s.userData = { x, y, z, k, life: i / 6 }; smokeCols.add(s); }
 }
 function buildSmoke() {
-  for (let i = 0; i < 16; i++) { const s = new THREE.Sprite(smokeMats[i % 2]); const k = 110 + Math.random() * 160; s.scale.set(k * 2, k * .45, 1); s.position.set((Math.random() - .5) * W * 1.6, 70 + Math.random() * 60, (Math.random() - .5) * D * 1.6); s.userData.v = 1 + Math.random(); smokeBanks.add(s); }
+  for (let i = 0; i < (Q.detail ? 16 : 6); i++) { const s = new THREE.Sprite(smokeMats[i % 2]); const k = 110 + Math.random() * 160; s.scale.set(k * 1.5, k * .62, 1); s.position.set((Math.random() - .5) * W * 1.6, 92 + Math.random() * 70, (Math.random() - .5) * D * 1.6); s.userData.v = 1 + Math.random(); smokeBanks.add(s); }
   for (const [x, y] of scn.smoke || []) { const [X, Z] = fToXZ(x, y); smokeColumn(X, groundY(X, Z) + 4, Z, 1.6); }
 }
 
@@ -1068,6 +1100,8 @@ function setSun(t) {
   skyU.horizon.value.copy(sRGB('#d8c9a4')).lerp(sRGB('#e09060'), dusk * .75);
   skyU.top.value.copy(sRGB('#5d7a96')).lerp(sRGB('#3a3a5a'), dusk);
   skyU.sunCol.value.copy(sun.color); waterU.sunC.value.copy(sun.color);
+  skyU.dusk.value = Math.min(1, dusk * 1.25);
+  amb.intensity = .95 + dusk * .75;
   fogBase.copy(sRGB(FOG_HEX)).lerp(sRGB('#c08a6a'), dusk * .5); scene.fog.color.copy(fogBase); waterU.fogC.value.copy(fogBase);
   hemi.intensity = .7 + el * .3; exposureBase = .98 + el * .1; renderer.toneMappingExposure = exposureBase;
   SURF.airCol.value.copy(sRGB('#c9bd9a')).lerp(sRGB('#d08a5a'), dusk * .7); waterU.skyT.value.copy(skyU.top.value); bakeDirty = 1;
@@ -1086,7 +1120,7 @@ function toggle(id) {
 document.getElementById('nebBtn').onclick = () => life && life.followNeb();
 document.getElementById('sun').oninput = e => setSun(+e.target.value);
 document.getElementById('collapse').onclick = () => { const t = document.getElementById('top'); t.classList.toggle('min'); document.getElementById('collapse').textContent = t.classList.contains('min') ? '+' : '–'; };
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(pixelRatio); composer.setSize(innerWidth, innerHeight); grade.uniforms.res.value.set(innerWidth, innerHeight); });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(pixelRatio); composer.setSize(innerWidth, innerHeight); grade.uniforms.res.value.set(innerWidth * pixelRatio, innerHeight * pixelRatio); });
 let seasonGoal = 0, seasonCycle = false, seasonNow = 0;
 const AYLAR = ['Gevran · yaz zirvesi', 'Lilavar · güz', 'Yobdabot · kış', 'Malkut · kış sonu', 'Kültendar · bahar'];
 document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { document.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('on', x === b)); seasonCycle = b.dataset.m === 'c'; if (!seasonCycle) seasonGoal = +b.dataset.m; });
@@ -1103,7 +1137,7 @@ function adaptQuality(real) {
   if (document.hidden || qPick !== 'auto' || fps > 26) { lowCount = 0; return; }
   if (++lowCount < 2) return; lowCount = 0;
   if (bloom && bloom.enabled) bloom.enabled = false;
-  else if (pixelRatio > .8) { pixelRatio = Math.max(.75, pixelRatio - .2); renderer.setPixelRatio(pixelRatio); composer.setPixelRatio(pixelRatio); }
+  else if (pixelRatio > .8) { pixelRatio = Math.max(.75, pixelRatio - .2); renderer.setPixelRatio(pixelRatio); composer.setPixelRatio(pixelRatio); grade.uniforms.res.value.set(innerWidth * pixelRatio, innerHeight * pixelRatio); }
 }
 function frame() {
   const now = performance.now(), real = (now - lastNow) / 1000, dt = Math.min(real, .1); lastNow = now; elapsed += dt; const t = elapsed;
@@ -1123,7 +1157,8 @@ function frame() {
     if (life) life.update(dt, t);
     updateLabels(); updateSeals(); drawMini();
   }
-  composer.render(); requestAnimationFrame(frame);
+  if (Q.bloom) composer.render(); else renderer.render(scene, camera);   // Düşük: ek tam ekran geçiş yok
+  requestAnimationFrame(frame);
 }
 init().catch(e => { loadmsg.textContent = 'Yüklenemedi: ' + e.message; console.error(e); }).finally(frame);
 </script>
